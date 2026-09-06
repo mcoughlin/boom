@@ -13,8 +13,7 @@ use std::f64::consts::PI;
 const GAUSS_K: f64 = 0.017_202_098_95;
 /// Obliquity is not applied: everything here stays in the ecliptic frame.
 const KEPLER_TOLERANCE: f64 = 1e-12;
-/// How close to e = 1 counts as parabolic, where the elliptical and hyperbolic
-/// solutions both become numerically unusable.
+/// Where both the elliptical and hyperbolic solutions go numerically unusable.
 const PARABOLIC_TOLERANCE: f64 = 1e-8;
 const KEPLER_MAX_ITER: usize = 64;
 
@@ -34,8 +33,7 @@ pub struct OrbitalElements {
     pub peri: f64,
     /// Mean anomaly at `epoch_jd`, degrees. Meaningless once `e >= 1`.
     pub mean_anomaly: f64,
-    /// Perihelion distance, au. Every conic has one; `a` does not. Authoritative
-    /// for propagation, so build through a constructor rather than field update.
+    /// Perihelion distance, au. Authoritative: build it, do not field-update it.
     pub q: f64,
     /// Time of perihelion passage, JD.
     pub tp: f64,
@@ -84,11 +82,9 @@ pub struct Geometry {
     pub topo_dist: f64,
     /// Sun-object-observer angle, degrees.
     pub phase_angle: f64,
-    /// Angle from perihelion along the orbit, degrees in (-180, 180]. Negative
-    /// inbound, so the two legs of an apparition separate on a plot.
+    /// Degrees from perihelion in (-180, 180], negative inbound.
     pub true_anomaly: f64,
-    /// Time of perihelion passage, JD. Constant for an orbit, carried per
-    /// detection because a refreshed orbit moves it.
+    /// Perihelion passage, JD. Per detection because a refreshed orbit moves it.
     pub perihelion_time: f64,
 }
 
@@ -109,11 +105,7 @@ pub fn solve_kepler(mean_anomaly: f64, e: f64) -> f64 {
     ecc_anomaly
 }
 
-/// True anomaly at `jd`, radians, for an orbit of any eccentricity.
-///
-/// Elliptical orbits go through Kepler's equation, near-parabolic ones through
-/// Barker's, and hyperbolic ones through the hyperbolic analogue. Comets occupy
-/// all three; asteroids only ever the first.
+/// True anomaly at `jd`, radians, by Kepler, Barker or the hyperbolic analogue.
 pub fn true_anomaly(elements: &OrbitalElements, jd: f64) -> f64 {
     let e = elements.e;
     let dt = jd - elements.tp;
@@ -307,8 +299,7 @@ mod tests {
         assert!(previous > 10.0, "still at {previous} au after 2000 days");
     }
 
-    /// Time symmetry: an orbit is at the same distance either side of
-    /// perihelion, which a wrong sign on the time offset would break.
+    /// Equal distance either side of perihelion; a wrong time sign breaks it.
     #[test]
     fn test_distance_is_symmetric_about_perihelion() {
         let tp = 2_461_000.5;
@@ -335,8 +326,7 @@ mod tests {
         }
     }
 
-    /// An elliptical orbit built from a and M must agree with the same orbit
-    /// expressed as q and tp, since the propagator only reads the latter.
+    /// a and M must agree with q and tp, since only the latter propagates.
     #[test]
     fn test_perihelion_derivation_round_trips() {
         let b = main_belt();
@@ -372,8 +362,7 @@ mod tests {
     #[test]
     fn test_circular_orbit_stays_at_its_semimajor_axis() {
         let b = main_belt();
-        // Built rather than field-updated: q and tp are derived from a and e, so
-        // overriding e alone would leave them describing a different orbit.
+        // Built, not field-updated: overriding e alone would strand q and tp.
         let circular = OrbitalElements::elliptical(
             b.epoch_jd,
             b.a,

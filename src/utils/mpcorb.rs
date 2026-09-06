@@ -408,18 +408,13 @@ async fn refresh_into_staging(
         });
     }
 
-    // Comets ride into the same staging collection, so one rename publishes
-    // both catalogues and a reader never sees only half of them.
+    // Same staging collection, so one rename publishes both catalogues.
     report.comets = refresh_comets_into_staging(staging, comet_url, now, show_progress).await?;
 
     Ok(report)
 }
 
-/// Add MPC's comet elements to the staging collection.
-///
-/// A failure here is not fatal to the refresh: minor planets are the bulk of
-/// the catalogue and are already staged by this point, so a comet file that is
-/// unreachable costs comets rather than everything.
+/// Stage MPC's comet elements. A failure here costs comets, not the refresh.
 async fn refresh_comets_into_staging(
     staging: Option<&mongodb::Collection<Document>>,
     url: &str,
@@ -430,8 +425,7 @@ async fn refresh_comets_into_staging(
 
     tracing::info!("downloading comet elements from {}", url);
     let mut tmp = tempfile::NamedTempFile::new()?;
-    // Reduced to a message straight away: the error type is not `Send`, and
-    // holding it past the awaits below would make this future unspawnable.
+    // Not `Send`, so it cannot be held across the awaits below.
     let failure: Option<String> = match tokio::time::timeout(
         DOWNLOAD_TIMEOUT,
         crate::utils::data::download_to_file(tmp.as_file_mut(), url, None, None, show_progress),
@@ -512,8 +506,7 @@ pub fn elements_from_document(doc: &Document) -> Option<OrbitalElements> {
         node: doc.get_f64("node").ok()?,
         peri: doc.get_f64("peri").ok()?,
         mean_anomaly: doc.get_f64("mean_anomaly").ok()?,
-        // Absent on documents written before comets were ingested; every
-        // elliptical orbit can recover both from `a` and the mean anomaly.
+        // Absent before comets; an elliptical orbit recovers both.
         q: doc.get_f64("q").ok().unwrap_or(0.0),
         tp: doc.get_f64("tp").ok().unwrap_or(0.0),
     })
@@ -647,8 +640,7 @@ pub fn normalize_ztf_ssnamenr(ssnamenr: &str) -> Option<String> {
         return Some(s.to_string());
     }
 
-    // Comets are keyed exactly as IPAC writes them, which is how the comet
-    // ingest stores them.
+    // Comets key on IPAC's own form, which is how the ingest stores them.
     if s.contains('/') || s.ends_with(|c: char| "PCDXI".contains(c)) {
         return Some(s.to_string());
     }
@@ -818,8 +810,7 @@ mod tests {
         assert_eq!(normalize_ztf_ssnamenr("()"), None);
     }
 
-    /// Comets key on the designation as IPAC writes it, which is what the comet
-    /// ingest stores.
+    /// Comets key on IPAC's own designation form.
     #[test]
     fn test_comet_designations_pass_through() {
         for d in ["C/2026O1", "73P-C", "124P", "1P", "P/2005T5"] {

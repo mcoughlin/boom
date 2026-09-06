@@ -478,8 +478,7 @@ pub struct ZtfSsoAssociation {
     /// Angle from perihelion at the alert epoch, degrees, negative inbound.
     #[serde(default)]
     pub true_anomaly: Option<f32>,
-    /// Time of perihelion passage, JD. Stored per detection because a refreshed
-    /// orbit moves it, so one value per object would go stale.
+    /// Perihelion passage, JD. Per detection because a refreshed orbit moves it.
     #[serde(default)]
     pub perihelion_time: Option<f64>,
 }
@@ -1511,8 +1510,7 @@ mod tests {
                 "ssnamenr {ssnamenr} did not resolve to an orbit"
             );
         }
-        // A comet resolves to its own designation, which is how the comet
-        // ingest keys it; it is absent here only because this map holds Ceres.
+        // A comet resolves to itself; absent here only because this map is Ceres.
         assert_eq!(
             normalize_ztf_ssnamenr("C/2026O1").as_deref(),
             Some("C/2026O1")

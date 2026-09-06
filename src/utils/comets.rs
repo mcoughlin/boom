@@ -1,9 +1,4 @@
-//! Parse MPC's comet orbit file into the same elements MPCORB feeds.
-//!
-//! Comets are distributed separately from the minor planets and in a different
-//! form: perihelion distance and time rather than semimajor axis and mean
-//! anomaly, and eccentricities that reach and pass 1. Both reduce to the same
-//! `OrbitalElements`, which propagates any conic.
+//! MPC's comet file, reduced to the same elements MPCORB feeds.
 
 use crate::utils::sso_geometry::OrbitalElements;
 
@@ -27,9 +22,7 @@ fn number(line: &str, from: usize, to: usize) -> Option<f64> {
     column(line, from, to)?.parse().ok()
 }
 
-/// Julian date from a calendar date, with a fractional day.
-///
-/// Gregorian only, which covers every epoch MPC publishes.
+/// Julian date from a Gregorian calendar date with a fractional day.
 pub fn julian_date(year: i64, month: i64, day: f64) -> f64 {
     let (y, m) = if month <= 2 {
         (year - 1, month + 12)
@@ -42,11 +35,7 @@ pub fn julian_date(year: i64, month: i64, day: f64) -> f64 {
         - 1524.5
 }
 
-/// The key ZTF's `ssnamenr` would carry for this comet.
-///
-/// A numbered periodic comet is written as its number and orbit type (`1P`);
-/// everything else keeps its full designation with the space removed, which is
-/// the form IPAC stamps on the alert (`C/2025Q3`).
+/// The key `ssnamenr` carries: `1P` when numbered, else `C/2025Q3`.
 fn designation_for(line: &str) -> Option<String> {
     let name = column(line, 102, line.len())?;
     let designation = name.split('(').next()?.trim();
@@ -78,8 +67,7 @@ pub fn parse_line(line: &str) -> Option<CometEntry> {
         return None;
     }
 
-    // The epoch column is only filled for perturbed solutions; the elements are
-    // referred to perihelion regardless, which is what the propagator uses.
+    // Only filled for perturbed solutions; elements refer to perihelion anyway.
     let epoch_jd = match column(line, 81, 89).filter(|s| s.len() == 8) {
         Some(stamp) => julian_date(
             stamp[0..4].parse().ok()?,
@@ -95,8 +83,7 @@ pub fn parse_line(line: &str) -> Option<CometEntry> {
         g: number(line, 96, 100),
         elements: OrbitalElements {
             epoch_jd,
-            // Undefined for a parabola and negative for a hyperbola; `q` and `e`
-            // are what the propagator reads.
+            // Meaningless above e = 1; the propagator reads `q` and `e`.
             a: if e < 1.0 { q / (1.0 - e) } else { 0.0 },
             e,
             incl: number(line, 70, 79)?,
@@ -134,8 +121,7 @@ mod tests {
         assert!((c.elements.a - 17.8).abs() < 0.5, "a was {}", c.elements.a);
     }
 
-    /// The designation has to match what IPAC stamps on the alert, or the orbit
-    /// is never found for the object it belongs to.
+    /// A key that misses IPAC's form finds no orbit for the object.
     #[test]
     fn test_designations_match_the_alert_form() {
         assert_eq!(parse_line(HALLEY).unwrap().designation, "1P");
@@ -157,8 +143,7 @@ mod tests {
         assert!(true_anomaly(&c.elements, c.elements.tp).abs() < 1e-6);
     }
 
-    /// The axes SkyPortal asked for: true anomaly signed about perihelion, and
-    /// a perihelion time that matches the element set.
+    /// True anomaly signs about perihelion, and tp matches the elements.
     #[test]
     fn test_geometry_reports_perihelion_axes() {
         let c = parse_line(HALLEY).expect("parses");
